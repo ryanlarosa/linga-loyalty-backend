@@ -104,11 +104,9 @@ app.post("/api/auth/register", async (req, res) => {
     "https://api.lingaros.com/v1/lingapos/customer";
 
   if (!firstName || !phoneNumber || !password || !email) {
-    return res
-      .status(400)
-      .json({
-        message: "First name, phone number, email, and password are required.",
-      });
+    return res.status(400).json({
+      message: "First name, phone number, email, and password are required.",
+    });
   }
   const emailRegex = /\S+@\S+\.\S+/;
   if (!emailRegex.test(email)) {
@@ -176,12 +174,10 @@ app.post("/api/auth/register", async (req, res) => {
         "Register: Linga response data:",
         JSON.stringify(lingaResponse.data, null, 2)
       );
-      return res
-        .status(500)
-        .json({
-          message:
-            "Linga API did not provide a clear customer ID after creation (unexpected success response).",
-        });
+      return res.status(500).json({
+        message:
+          "Linga API did not provide a clear customer ID after creation (unexpected success response).",
+      });
     }
   } catch (lingaError) {
     if (lingaError.response) {
@@ -221,11 +217,9 @@ app.post("/api/auth/register", async (req, res) => {
     console.error(
       "Register: Failed to obtain a Linga Customer ID. Cannot create local user."
     );
-    return res
-      .status(500)
-      .json({
-        message: "Failed to obtain a customer ID from Linga for linking.",
-      });
+    return res.status(500).json({
+      message: "Failed to obtain a customer ID from Linga for linking.",
+    });
   }
 
   try {
@@ -238,12 +232,10 @@ app.post("/api/auth/register", async (req, res) => {
       console.warn(
         `Register: Linga Customer ID ${lingaCustomerId} already exists locally (User ID: ${existingUserRows[0].id}). Registration aborted.`
       );
-      return res
-        .status(409)
-        .json({
-          message:
-            "This account (linked with Linga) is already registered in our loyalty program. Please try logging in.",
-        });
+      return res.status(409).json({
+        message:
+          "This account (linked with Linga) is already registered in our loyalty program. Please try logging in.",
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -451,13 +443,11 @@ app.post(
         rewardToRedeem.points_cost,
       ]);
       await client.query("COMMIT");
-      res
-        .status(200)
-        .json({
-          message: `Reward "${rewardToRedeem.name}" redeemed successfully!`,
-          newTotalPoints: newTotalPoints,
-          redemptionDetails: redemptionResult.rows[0],
-        });
+      res.status(200).json({
+        message: `Reward "${rewardToRedeem.name}" redeemed successfully!`,
+        newTotalPoints: newTotalPoints,
+        redemptionDetails: redemptionResult.rows[0],
+      });
     } catch (error) {
       await client.query("ROLLBACK");
       console.error("API: Error redeeming reward:", error.stack);
@@ -504,6 +494,7 @@ app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
 
 // --- Webhook Listener Endpoint ---
 app.post("/webhook/linga", async (req, res) => {
+  console.log("✅ Webhook received from Linga.");
   // ... (logic as before, ensure any keys it might use in future are from env) ...
   // For brevity, assuming this logic is stable and doesn't directly use the new env vars yet.
   // If it makes calls to other APIs that need keys, those should be from process.env too.
