@@ -463,12 +463,14 @@ app.post(
 
 // --- Get User's Points History Endpoint (Protected) ---
 app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
-  // ... (logic as before) ...
   const userId = req.user.userId;
   const lingaCustomerId = req.user.lingaCustomerId;
+  const { limit } = req.query; // <-- Get the optional 'limit' query parameter
+
   try {
     const earnedPointsQuery = `SELECT 'transaction_' || t.id AS event_id, 'earned' AS type, t.points_earned AS points, t.transaction_time AS date, COALESCE(s.name, t.linga_store_id, 'Unknown Store') AS store_name, 'Points from purchase at ' || COALESCE(s.name, t.linga_store_id, 'Unknown Store') || ' (Order: ' || t.linga_order_id || ')' AS description FROM transactions t LEFT JOIN stores s ON t.linga_store_id = s.linga_store_id WHERE t.customer_identifier = $1 AND t.points_earned > 0 `;
     const spentPointsQuery = `SELECT 'redemption_' || rdm.id AS event_id, 'redeemed' AS type, rdm.points_spent AS points, rdm.redeemed_at AS date, NULL AS store_name, 'Redeemed: ' || r.name AS description FROM redemptions rdm JOIN rewards r ON rdm.reward_id = r.id WHERE rdm.user_id = $1 `;
+
     let history = [];
     if (lingaCustomerId) {
       const earnedResult = await pool.query(earnedPointsQuery, [
@@ -478,7 +480,15 @@ app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
     }
     const spentResult = await pool.query(spentPointsQuery, [userId]);
     history = history.concat(spentResult.rows);
+
+    // Sort before limiting
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // If a limit is provided, slice the array
+    if (limit) {
+      history = history.slice(0, parseInt(limit, 10));
+    }
+
     res.json(history);
   } catch (error) {
     console.error(
