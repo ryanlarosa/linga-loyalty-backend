@@ -132,13 +132,32 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
 
     // NOTE: 'perkx://' is a custom URL scheme we will set up in the app.
     const resetUrl = `perkx://reset-password/${token}`;
-
-    await transporter.sendMail({
+    const mailOptions = {
       from: '"PerkX Support" <support@perkx.app>',
       to: user.email,
       subject: "Your PerkX Password Reset Request",
-      text: `A password reset was requested for your PerkX account.\n\nPlease click the following link to reset your password:\n\n${resetUrl}\n\nThis link will expire in one hour. If you did not request this, please ignore this email.`,
-    });
+
+      // 1. Plain text version for fallback
+      text:
+        `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
+        `Please use the following link to complete the process:\n\n` +
+        `${resetUrl}\n\n` +
+        `If you did not request this, please ignore this email and your password will remain unchanged.\n`,
+
+      // 2. HTML version with a clickable button
+      html: `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <h2 style="color: #212121;">Password Reset Request</h2>
+      <p>A password reset was requested for your PerkX account. Please click the button below to set a new password.</p>
+      <p>
+        <a href="${resetUrl}" target="_blank" style="background-color: #212121; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Your Password</a>
+      </p>
+      <p>This password reset link will expire in one hour.</p>
+      <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+    </div>
+  `,
+    };
+    await transporter.sendMail(mailOptions);
 
     res.status(200).json({
       message: "If a matching account was found, a reset link has been sent.",
