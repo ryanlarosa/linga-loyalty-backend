@@ -75,6 +75,18 @@ const authenticateToken = (req, res, next) => {
     console.log("Auth middleware: No token provided.");
     return res.sendStatus(401);
   }
+
+  const isAdmin = (req, res, next) => {
+    const adminKey = req.headers["x-admin-key"];
+    if (adminKey && adminKey === process.env.ADMIN_SECRET_KEY) {
+      next();
+    } else {
+      res
+        .status(403)
+        .json({ message: "Forbidden: Administrator access required." });
+    }
+  };
+
   // process.env.JWT_SECRET is now guaranteed by the check at the top
   jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
     if (err) {
