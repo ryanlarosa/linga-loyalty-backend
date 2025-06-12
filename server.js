@@ -710,6 +710,89 @@ app.delete("/api/admin/rewards/:id", isAdmin, async (req, res) => {
   }
 });
 
+// -- END OF REWARDS CRUD --//
+
+// --- ADMIN: GET ALL USERS ---
+app.get("/api/admin/users", isAdmin, async (req, res) => {
+  try {
+    const usersQuery = `
+      SELECT id, name, email, phone_number, total_loyalty_points, created_at 
+      FROM users 
+      ORDER BY created_at DESC;
+    `;
+    const { rows } = await pool.query(usersQuery);
+    res.json(rows);
+  } catch (error) {
+    console.error("ADMIN GET USERS ERROR:", error);
+    res.status(500).json({ message: "Server error while fetching users." });
+  }
+});
+
+// --- ADMIN: ADJUST USER POINTS ---
+app.post(
+  "/api/admin/users/:userId/adjust-points",
+  isAdmin,
+  async (req, res) => {
+    const { userId } = req.params;
+    const { points, reason } = req.body;
+
+    if (typeof points !== "number" || !reason) {
+      return res.status(400).json({
+        message: "A points value (number) and a reason (string) are required.",
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Step 1: Update the user's total points
+      const updateUserQuery = `
+      UPDATE users 
+      SET total_loyalty_points = total_loyalty_points + $1 
+      WHERE id = $2 
+      RETURNING *, total_loyalty_points AS new_total_points;
+    `;
+      const updatedUserResult = await client.query(updateUserQuery, [
+        points,
+        userId,
+      ]);
+
+      if (updatedUserResult.rows.length === 0) {
+        throw new Error("User not found.");
+      }
+
+      const updatedUser = updatedUserResult.rows[0];
+
+      // Step 2: Log this adjustment as a transaction for their history
+      const transactionDescription = `Admin Adjustment: ${reason}`;
+      const logTransactionQuery = `
+      INSERT INTO transactions 
+        (linga_order_id, total_amount, customer_identifier, transaction_time, raw_payload, points_earned, linga_store_id)
+      VALUES 
+        ($1, $2, $3, NOW(), $4, $5, $6);
+    `;
+      await client.query(logTransactionQuery, [
+        `admin-adj-${Date.now()}`, // A unique ID for this adjustment
+        0, // No sale amount for a manual adjustment
+        updatedUser.linga_customer_id,
+        { source: "admin_dashboard", reason: reason }, // The raw payload
+        points, // The number of points, can be positive or negative
+        "ADMIN", // A special store ID for admin actions
+      ]);
+
+      await client.query("COMMIT");
+      res.status(200).json(updatedUser);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      console.error("ADMIN ADJUST POINTS ERROR:", error);
+      res.status(500).json({ message: "Server error while adjusting points." });
+    } finally {
+      client.release();
+    }
+  }
+);
+
 // --- Get User's Points History Endpoint (Protected) ---
 app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
