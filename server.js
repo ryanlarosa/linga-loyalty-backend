@@ -80,6 +80,7 @@ const authenticateToken = (req, res, next) => {
 
   const isAdmin = (req, res, next) => {
     const adminKey = req.headers["x-admin-key"];
+    // Make sure you have set ADMIN_SECRET_KEY in your Render environment variables
     if (adminKey && adminKey === process.env.ADMIN_SECRET_KEY) {
       next();
     } else {
