@@ -78,18 +78,6 @@ const authenticateToken = (req, res, next) => {
     return res.sendStatus(401);
   }
 
-  const isAdmin = (req, res, next) => {
-    const adminKey = req.headers["x-admin-key"];
-    // Make sure you have set ADMIN_SECRET_KEY in your Render environment variables
-    if (adminKey && adminKey === process.env.ADMIN_SECRET_KEY) {
-      next();
-    } else {
-      res
-        .status(403)
-        .json({ message: "Forbidden: Administrator access required." });
-    }
-  };
-
   // process.env.JWT_SECRET is now guaranteed by the check at the top
   jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
     if (err) {
@@ -106,7 +94,21 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
 // --- End JWT Authentication Middleware ---
+
+// --- Admin Authentication Middleware ---
+const isAdmin = (req, res, next) => {
+  const adminKey = req.headers["x-admin-key"];
+  // Make sure you have set ADMIN_SECRET_KEY in your Render environment variables
+  if (adminKey && adminKey === process.env.ADMIN_SECRET_KEY) {
+    next();
+  } else {
+    res
+      .status(403)
+      .json({ message: "Forbidden: Administrator access required." });
+  }
+};
 // Replace with your actual email service credentials for production
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
