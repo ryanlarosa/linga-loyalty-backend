@@ -6,6 +6,8 @@ const { Pool } = require("pg");
 const axios = require("axios");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Render will set process.env.PORT
@@ -90,7 +92,101 @@ const authenticateToken = (req, res, next) => {
   });
 };
 // --- End JWT Authentication Middleware ---
+// Replace with your actual email service credentials for production
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // Use SSL
+  auth: {
+    user: "it@eatx.com", // Your full Google Workspace email
+    pass: "qvgqetyoglhtckvd", // Use the App Password here, NOT your regular password
+  },
+});
 
+// --- Request Password Reset Endpoint ---
+app.post("/api/auth/request-password-reset", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: "Email address is required." });
+  }
+
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email.toLowerCase(),
+    ]);
+    if (rows.length === 0) {
+      // Security best practice: Don't reveal if an email exists or not.
+      return res.status(200).json({
+        message: "If a matching account was found, a reset link has been sent.",
+      });
+    }
+    const user = rows[0];
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenExpires = new Date(Date.now() + 3600000); // Token is valid for 1 hour
+
+    await pool.query(
+      "UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3",
+      [token, tokenExpires, user.id]
+    );
+
+    // NOTE: 'perkx://' is a custom URL scheme we will set up in the app.
+    const resetUrl = `perkx://reset-password/${token}`;
+
+    await transporter.sendMail({
+      from: '"PerkX Support" <support@perkx.app>',
+      to: user.email,
+      subject: "Your PerkX Password Reset Request",
+      text: `A password reset was requested for your PerkX account.\n\nPlease click the following link to reset your password:\n\n${resetUrl}\n\nThis link will expire in one hour. If you did not request this, please ignore this email.`,
+    });
+
+    res.status(200).json({
+      message: "If a matching account was found, a reset link has been sent.",
+    });
+  } catch (error) {
+    console.error("REQUEST PASSWORD RESET ERROR:", error);
+    res.status(500).json({ message: "An error occurred on the server." });
+  }
+});
+
+// --- Reset Password Endpoint ---
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) {
+    return res
+      .status(400)
+      .json({ message: "Token and new password are required." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM users WHERE password_reset_token = $1 AND password_reset_expires > NOW()",
+      [token]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Password reset token is invalid or has expired." });
+    }
+    const user = rows[0];
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await pool.query(
+      "UPDATE users SET hashed_password = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE id = $2",
+      [hashedPassword, user.id]
+    );
+
+    res
+      .status(200)
+      .json({ message: "Your password has been successfully reset." });
+  } catch (error) {
+    console.error("RESET PASSWORD ERROR:", error);
+    res.status(500).json({ message: "An error occurred on the server." });
+  }
+});
 // --- User Registration Endpoint ---
 app.post("/api/auth/register", async (req, res) => {
   const { firstName, lastName, phoneNumber, email, password } = req.body;
