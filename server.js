@@ -64,7 +64,7 @@ app.use(express.json());
 
 // Simple GET route
 app.get("/", (req, res) => {
-  res.send("Loyalty App Backend is alive and running!");
+  res.send("PerkX Loyalty App Backend is alive!");
 });
 
 // --- JWT Authentication Middleware ---
@@ -103,7 +103,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// --- Request Password Reset Endpoint ---
+// --- Password Reset Endpoints (OTP Flow) ---
+
 app.post("/api/auth/request-password-reset", async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -115,52 +116,33 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
       email.toLowerCase(),
     ]);
     if (rows.length === 0) {
-      // Security best practice: Don't reveal if an email exists or not.
       return res.status(200).json({
-        message: "If a matching account was found, a reset link has been sent.",
+        message: "If a matching account was found, an OTP has been sent.",
       });
     }
     const user = rows[0];
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenExpires = new Date(Date.now() + 3600000); // Token is valid for 1 hour
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const tokenExpires = new Date(Date.now() + 600000); // OTP valid for 10 minutes
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otp, salt);
 
     await pool.query(
       "UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3",
-      [token, tokenExpires, user.id]
+      [hashedOtp, tokenExpires, user.id]
     );
 
-    // NOTE: 'perkx://' is a custom URL scheme we will set up in the app.
-    const resetUrl = `perkx://reset-password/${token}`;
     const mailOptions = {
       from: '"PerkX Support" <support@perkx.app>',
       to: user.email,
-      subject: "Your PerkX Password Reset Request",
-
-      // 1. Plain text version for fallback
-      text:
-        `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
-        `Please use the following link to complete the process:\n\n` +
-        `${resetUrl}\n\n` +
-        `If you did not request this, please ignore this email and your password will remain unchanged.\n`,
-
-      // 2. HTML version with a clickable button
-      html: `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <h2 style="color: #212121;">Password Reset Request</h2>
-      <p>A password reset was requested for your PerkX account. Please click the button below to set a new password.</p>
-      <p>
-        <a href="${resetUrl}" target="_blank" style="background-color: #212121; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Your Password</a>
-      </p>
-      <p>This password reset link will expire in one hour.</p>
-      <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
-    </div>
-  `,
+      subject: "Your PerkX Password Reset Code",
+      html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;"><h2>Password Reset Code</h2><p>A password reset was requested for your PerkX account. Please use the following One-Time Password (OTP) to proceed.</p><p style="font-size: 24px; font-weight: bold; letter-spacing: 5px; text-align: center; background: #f0f0f0; padding: 10px; border-radius: 5px;">${otp}</p><p>This code will expire in 10 minutes.</p><p>If you did not request this, please ignore this email.</p></div>`,
     };
     await transporter.sendMail(mailOptions);
 
     res.status(200).json({
-      message: "If a matching account was found, a reset link has been sent.",
+      message: "If a matching account was found, an OTP has been sent.",
     });
   } catch (error) {
     console.error("REQUEST PASSWORD RESET ERROR:", error);
@@ -168,7 +150,47 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
   }
 });
 
-// --- Reset Password Endpoint ---
+app.post("/api/auth/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ message: "Email and OTP are required." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM users WHERE email = $1 AND password_reset_expires > NOW()",
+      [email.toLowerCase()]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        message: "Invalid OTP or request has expired. Please try again.",
+      });
+    }
+    const user = rows[0];
+
+    const isMatch = await bcrypt.compare(otp, user.password_reset_token);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ message: "Invalid OTP. Please check the code and try again." });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpires = new Date(Date.now() + 600000); // 10 minutes for final step
+
+    await pool.query(
+      "UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3",
+      [resetToken, resetTokenExpires, user.id]
+    );
+
+    res.status(200).json({ message: "OTP verified.", resetToken: resetToken });
+  } catch (error) {
+    console.error("VERIFY OTP ERROR:", error);
+    res.status(500).json({ message: "An error occurred on the server." });
+  }
+});
+
 app.post("/api/auth/reset-password", async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) {
@@ -206,6 +228,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
     res.status(500).json({ message: "An error occurred on the server." });
   }
 });
+
 // --- User Registration Endpoint ---
 app.post("/api/auth/register", async (req, res) => {
   const { firstName, lastName, phoneNumber, email, password } = req.body;
