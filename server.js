@@ -611,6 +611,86 @@ app.post(
 );
 // --- End Redeem a Reward Endpoint ---
 
+// --- ADMIN: CREATE A NEW REWARD ---
+app.post("/api/admin/rewards", isAdmin, async (req, res) => {
+  const { name, description, points_cost, image_url, is_active } = req.body;
+  if (!name || !points_cost) {
+    return res
+      .status(400)
+      .json({ message: "Name and points_cost are required." });
+  }
+  try {
+    const newRewardQuery = `
+      INSERT INTO rewards (name, description, points_cost, image_url, is_active) 
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(newRewardQuery, [
+      name,
+      description,
+      points_cost,
+      image_url,
+      is_active === undefined ? true : is_active,
+    ]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error("ADMIN CREATE REWARD ERROR:", error);
+    res.status(500).json({ message: "Server error creating reward." });
+  }
+});
+
+// --- ADMIN: UPDATE AN EXISTING REWARD ---
+app.put("/api/admin/rewards/:id", isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, points_cost, image_url, is_active } = req.body;
+  if (!name || !points_cost) {
+    return res
+      .status(400)
+      .json({ message: "Name and points_cost are required." });
+  }
+  try {
+    const updateRewardQuery = `
+      UPDATE rewards 
+      SET name = $1, description = $2, points_cost = $3, image_url = $4, is_active = $5, updated_at = NOW()
+      WHERE id = $6
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(updateRewardQuery, [
+      name,
+      description,
+      points_cost,
+      image_url,
+      is_active,
+      id,
+    ]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Reward not found." });
+    }
+    res.status(200).json(rows[0]);
+  } catch (error) {
+    console.error("ADMIN UPDATE REWARD ERROR:", error);
+    res.status(500).json({ message: "Server error updating reward." });
+  }
+});
+
+// --- ADMIN: DELETE A REWARD ---
+app.delete("/api/admin/rewards/:id", isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deleteRewardQuery = "DELETE FROM rewards WHERE id = $1 RETURNING *;";
+    const { rows } = await pool.query(deleteRewardQuery, [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Reward not found." });
+    }
+    res
+      .status(200)
+      .json({ message: `Reward "${rows[0].name}" deleted successfully.` });
+  } catch (error) {
+    console.error("ADMIN DELETE REWARD ERROR:", error);
+    res.status(500).json({ message: "Server error deleting reward." });
+  }
+});
+
 // --- Get User's Points History Endpoint (Protected) ---
 app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
