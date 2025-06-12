@@ -8,6 +8,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Render will set process.env.PORT
@@ -61,6 +62,7 @@ pool.query("SELECT NOW()", (err, dbRes) => {
 // --- End PostgreSQL Connection Setup ---
 
 app.use(express.json());
+const cors = require("cors");
 
 // Simple GET route
 app.get("/", (req, res) => {
