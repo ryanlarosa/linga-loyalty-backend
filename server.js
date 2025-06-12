@@ -62,7 +62,7 @@ pool.query("SELECT NOW()", (err, dbRes) => {
 // --- End PostgreSQL Connection Setup ---
 
 app.use(express.json());
-const cors = require("cors");
+app.use(cors());
 
 // Simple GET route
 app.get("/", (req, res) => {
