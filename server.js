@@ -616,6 +616,20 @@ app.post(
 );
 // --- End Redeem a Reward Endpoint ---
 
+// --- ADMIN: GET ALL REWARDS (ACTIVE AND INACTIVE) ---
+app.get("/api/admin/rewards", isAdmin, async (req, res) => {
+  try {
+    const rewardsQuery = `SELECT * FROM rewards ORDER BY is_active DESC, points_cost ASC;`;
+    const { rows } = await pool.query(rewardsQuery);
+    res.json(rows);
+  } catch (error) {
+    console.error("ADMIN GET REWARDS ERROR:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching all rewards." });
+  }
+});
+
 // --- ADMIN: CREATE A NEW REWARD ---
 app.post("/api/admin/rewards", isAdmin, async (req, res) => {
   const { name, description, points_cost, image_url, is_active } = req.body;
