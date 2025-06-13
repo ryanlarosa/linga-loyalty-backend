@@ -13,6 +13,7 @@ const userRoutes = require("./routes/user");
 const webhookRoutes = require("./routes/webhook");
 const rewardRoutes = require("./routes/rewards");
 const storeRoutes = require("./routes/stores");
+const brandRoutes = require("./routes/brands"); // Admin brands
 
 const app = express();
 const PORT = process.env.PORT || 3000;
