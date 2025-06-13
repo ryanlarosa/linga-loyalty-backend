@@ -793,6 +793,69 @@ app.post(
   }
 );
 
+// --- ADMIN: GET DASHBOARD ANALYTICS ---
+app.get("/api/admin/analytics", isAdmin, async (req, res) => {
+  try {
+    // We will run multiple queries in parallel for better performance
+    const queries = [
+      // Query 1: Get total number of users
+      pool.query("SELECT COUNT(*) AS total_users FROM users;"),
+
+      // Query 2: Get total points in circulation
+      pool.query(
+        "SELECT SUM(total_loyalty_points) AS total_points FROM users;"
+      ),
+
+      // Query 3: Get total number of redemptions
+      pool.query("SELECT COUNT(*) AS total_redemptions FROM redemptions;"),
+
+      // Query 4: Get the top 5 most redeemed rewards
+      pool.query(`
+        SELECT r.name, COUNT(rd.id) AS redemption_count 
+        FROM redemptions rd 
+        JOIN rewards r ON rd.reward_id = r.id 
+        GROUP BY r.name 
+        ORDER BY redemption_count DESC 
+        LIMIT 5;
+      `),
+
+      // Query 5: Get the top 5 users by points
+      pool.query(`
+        SELECT name, total_loyalty_points 
+        FROM users 
+        ORDER BY total_loyalty_points DESC 
+        LIMIT 5;
+      `),
+    ];
+
+    const [
+      totalUsersResult,
+      totalPointsResult,
+      totalRedemptionsResult,
+      topRewardsResult,
+      topUsersResult,
+    ] = await Promise.all(queries);
+
+    const analyticsData = {
+      totalUsers: parseInt(totalUsersResult.rows[0].total_users, 10),
+      totalPointsInCirculation:
+        parseInt(totalPointsResult.rows[0].total_points, 10) || 0,
+      totalRedemptions: parseInt(
+        totalRedemptionsResult.rows[0].total_redemptions,
+        10
+      ),
+      topRewards: topRewardsResult.rows,
+      topUsers: topUsersResult.rows,
+    };
+
+    res.json(analyticsData);
+  } catch (error) {
+    console.error("ADMIN GET ANALYTICS ERROR:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching analytics data." });
+  }
+});
 // --- Get User's Points History Endpoint (Protected) ---
 app.get("/api/users/me/point-history", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
