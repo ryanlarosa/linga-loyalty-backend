@@ -53,6 +53,7 @@ app.get("/", (req, res) => {
 // Public routes
 app.use("/api/rewards", rewardRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/brands", brandRoutes);
 
 // User routes (needs login)
 app.use("/api/users", authenticateToken, userRoutes);

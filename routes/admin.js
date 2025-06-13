@@ -241,4 +241,79 @@ router.get("/analytics", async (req, res) => {
   }
 });
 
+// --- Brand Management Endpoints ---
+
+// GET /api/admin/brands - Get all brands for the admin panel
+router.get("/brands", async (req, res) => {
+  // This reuses the logic from the public route but shows all brands
+  try {
+    const brandsQuery = `SELECT * FROM brands ORDER BY sort_order ASC, name ASC;`;
+    const { rows } = await pool.query(brandsQuery);
+    res.json(rows);
+  } catch (error) {
+    console.error("ADMIN GET BRANDS ERROR:", error);
+    res.status(500).json({ message: "Server error while fetching brands." });
+  }
+});
+
+// POST /api/admin/brands - Create a new brand
+router.post("/brands", async (req, res) => {
+  const { name, image_url, instagram_url, sort_order, is_active } = req.body;
+  // ... add validation logic ...
+  try {
+    const newBrandQuery = `INSERT INTO brands (name, image_url, instagram_url, sort_order, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING *;`;
+    const { rows } = await pool.query(newBrandQuery, [
+      name,
+      image_url,
+      instagram_url,
+      sort_order || 0,
+      is_active === undefined ? true : is_active,
+    ]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error("ADMIN CREATE BRAND ERROR:", error);
+    res.status(500).json({ message: "Server error creating brand." });
+  }
+});
+
+// PUT /api/admin/brands/:id - Update a brand
+router.put("/brands/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, image_url, instagram_url, sort_order, is_active } = req.body;
+  // ... add validation logic ...
+  try {
+    const updateBrandQuery = `UPDATE brands SET name = $1, image_url = $2, instagram_url = $3, sort_order = $4, is_active = $5, updated_at = NOW() WHERE id = $6 RETURNING *;`;
+    const { rows } = await pool.query(updateBrandQuery, [
+      name,
+      image_url,
+      instagram_url,
+      sort_order,
+      is_active,
+      id,
+    ]);
+    if (rows.length === 0)
+      return res.status(404).json({ message: "Brand not found." });
+    res.status(200).json(rows[0]);
+  } catch (error) {
+    console.error("ADMIN UPDATE BRAND ERROR:", error);
+    res.status(500).json({ message: "Server error updating brand." });
+  }
+});
+
+// DELETE /api/admin/brands/:id - Delete a brand
+router.delete("/brands/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deleteBrandQuery = "DELETE FROM brands WHERE id = $1 RETURNING *;";
+    const { rows } = await pool.query(deleteBrandQuery, [id]);
+    if (rows.length === 0)
+      return res.status(404).json({ message: "Brand not found." });
+    res
+      .status(200)
+      .json({ message: `Brand "${rows[0].name}" deleted successfully.` });
+  } catch (error) {
+    console.error("ADMIN DELETE BRAND ERROR:", error);
+    res.status(500).json({ message: "Server error deleting brand." });
+  }
+});
 module.exports = router;
