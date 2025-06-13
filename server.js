@@ -6,12 +6,12 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const pool = require("./db"); // Import the central db connection
 
-// --- Import Routers ---
+// --- Import ALL Your Routers ---
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const userRoutes = require("./routes/user");
 const webhookRoutes = require("./routes/webhook");
-const rewardRoutes = require("./routes/rewards"); // Public route for fetching rewards
+const rewardRoutes = require("./routes/rewards");
 const storeRoutes = require("./routes/stores");
 
 const app = express();
@@ -25,15 +25,10 @@ app.use(express.json());
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
-  if (token == null) {
-    return res.sendStatus(401);
-  }
+  if (token == null) return res.sendStatus(401);
 
   jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
-    if (err) {
-      console.log("Auth middleware: Token verification failed.", err.message);
-      return res.sendStatus(403);
-    }
+    if (err) return res.sendStatus(403);
     req.user = userPayload;
     next();
   });
@@ -52,21 +47,22 @@ const isAdmin = (req, res, next) => {
 
 // --- Mount Routers ---
 app.get("/", (req, res) => {
-  res.send("PerkX Loyalty App Backend is alive and running!");
+  res.send("PerkX Loyalty App Backend is alive!");
 });
 
-// Public routes that anyone can access
-app.use("/api/rewards", rewardRoutes); // e.g., GET /api/rewards
-app.use("/api/auth", authRoutes); // e.g., POST /api/auth/login
+// Public routes
+app.use("/api/rewards", rewardRoutes);
+app.use("/api/auth", authRoutes);
 
-// User routes that require a logged-in user
-app.use("/api/users", authenticateToken, userRoutes); // e.g., GET /api/users/me
+// User routes (needs login)
+app.use("/api/users", authenticateToken, userRoutes);
 
-// Admin routes that require the admin secret key
-app.use("/api/admin", isAdmin, adminRoutes); // e.g., GET /api/admin/users
-app.use("/api/admin/stores", isAdmin, storeRoutes);
-// Webhook routes that do not have auth
-app.use("/webhook", webhookRoutes); // e.g., POST /webhook/linga
+// Admin routes (needs secret key)
+app.use("/api/admin", isAdmin, adminRoutes);
+app.use("/api/admin/stores", isAdmin, storeRoutes); // Added this from our recent work
+
+// Webhook routes (no auth)
+app.use("/webhook", webhookRoutes);
 
 // --- Start Server ---
 app.listen(PORT, () => {
