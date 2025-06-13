@@ -12,6 +12,7 @@ const adminRoutes = require("./routes/admin");
 const userRoutes = require("./routes/user");
 const webhookRoutes = require("./routes/webhook");
 const rewardRoutes = require("./routes/rewards"); // Public route for fetching rewards
+const storeRoutes = require("./routes/stores");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,7 +64,7 @@ app.use("/api/users", authenticateToken, userRoutes); // e.g., GET /api/users/me
 
 // Admin routes that require the admin secret key
 app.use("/api/admin", isAdmin, adminRoutes); // e.g., GET /api/admin/users
-
+app.use("/api/admin/stores", isAdmin, storeRoutes);
 // Webhook routes that do not have auth
 app.use("/webhook", webhookRoutes); // e.g., POST /webhook/linga
 
