@@ -1,7 +1,7 @@
 // routes/rewards.js
 const express = require("express");
 const router = express.Router();
-const pool = require("../db"); // Assumes you have created the db.js file
+const pool = require("../db");
 
 // GET /api/rewards - Get list of all active rewards
 router.get("/", async (req, res) => {
