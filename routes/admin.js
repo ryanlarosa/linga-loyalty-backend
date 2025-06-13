@@ -3,17 +3,6 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-//FETCH REWARDS
-router.get("/rewards", async (req, res) => {
-  try {
-    const rewardsQuery = `SELECT id, name, description, points_cost, image_url, is_active FROM rewards WHERE is_active = TRUE ORDER BY points_cost ASC;`;
-    const { rows } = await pool.query(rewardsQuery);
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ message: "Server error while fetching rewards." });
-  }
-});
-
 //CREATE REWARD
 router.post("/rewards", async (req, res) => {
   const { name, description, points_cost, image_url, is_active } = req.body;
